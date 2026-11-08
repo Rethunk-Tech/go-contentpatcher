@@ -6,6 +6,8 @@ Notable changes to `go-contentpatcher`. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-08
+
 ### Added
 
 - `Analyze`: one pass over a profile's content packs, returning conflicts with per-patch evidence, load-clash hints,
@@ -22,4 +24,5 @@ Notable changes to `go-contentpatcher`. The format follows
 - `SetCacheRoot`, `Reset`, `Forget`, `HoldPacks` and `ReleasePacks`: process-wide caches, an explicit clean slate, and
   packs released a grace period after the last check with `FreeOSMemory` as a policy switch.
 
-[Unreleased]: https://github.com/Rethunk-Tech/go-contentpatcher/commits/main
+[Unreleased]: https://github.com/Rethunk-Tech/go-contentpatcher/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Rethunk-Tech/go-contentpatcher/releases/tag/v0.1.0
