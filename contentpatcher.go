@@ -2802,7 +2802,8 @@ func conflictOf(kind, target string, hits []packHit) Conflict {
 		return c
 	}
 	if best >= 0 && len(tied) == 1 {
-		c.WinnerID, c.WinnerName, c.WinnerKind = hits[best].ID, hits[best].Name, WinnerTop
+		// best indexes a hit: it is only non-negative when the loop above assigned it from a range over hits.
+		c.WinnerID, c.WinnerName, c.WinnerKind = hits[best].ID, hits[best].Name, WinnerTop //nolint:gosec // false positive: best >= 0 guard rules out the empty case
 		for i, h := range hits {
 			if i != best {
 				c.Overridden = append(c.Overridden, h.Name)
