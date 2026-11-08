@@ -39,10 +39,10 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/MirrexOne/unqueryvet v1.5.4 // indirect
 	github.com/OpenPeeDeeP/depguard/v2 v2.2.1 // indirect
-	github.com/Rethunk-Tech/go-desktopenv v0.6.0 // indirect
-	github.com/Rethunk-Tech/go-github v0.2.0 // indirect
-	github.com/Rethunk-Tech/go-httpkit v0.1.0 // indirect
-	github.com/Rethunk-Tech/go-semverish v0.2.0 // indirect
+	github.com/Rethunk-Tech/go-desktopenv v0.9.0 // indirect
+	github.com/Rethunk-Tech/go-github v0.3.0 // indirect
+	github.com/Rethunk-Tech/go-httpkit v0.3.0 // indirect
+	github.com/Rethunk-Tech/go-semverish v0.3.0 // indirect
 	github.com/alecthomas/chroma/v2 v2.27.0 // indirect
 	github.com/alecthomas/go-check-sumtype v0.5.1-0.20260828200218-ae6904d28606 // indirect
 	github.com/alexkohler/nakedret/v2 v2.0.6 // indirect
@@ -98,7 +98,7 @@ require (
 	github.com/go-xmlfmt/xmlfmt v1.1.3 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/godoc-lint/godoc-lint v0.11.4 // indirect
-	github.com/gofrs/flock v0.13.1 // indirect
+	github.com/gofrs/flock v0.13.2 // indirect
 	github.com/golangci/asciicheck v0.5.0 // indirect
 	github.com/golangci/canonicalheader v0.0.0-20260928145534-e18e5c5a078f // indirect
 	github.com/golangci/dupl v0.0.0-20260401084720-c99c5cf5c202 // indirect
@@ -195,7 +195,7 @@ require (
 	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tetafro/godot v1.5.6 // indirect
-	github.com/timakin/bodyclose v0.0.0-20260923065923-98ded9ab4ef2 // indirect
+	github.com/timakin/bodyclose v0.0.0-20261107224203-8bb60b19bea4 // indirect
 	github.com/timonwong/loggercheck v0.13.1 // indirect
 	github.com/tomarrell/wrapcheck/v2 v2.13.0 // indirect
 	github.com/tommy-muehle/go-mnd/v2 v2.5.1 // indirect
