@@ -31,8 +31,8 @@ We handle the report inside the private advisory, so you see each status change 
 
 ## What is in scope
 
-A content pack is untrusted input. It is a folder of third-party files — `manifest.json`, `content.json` and
-`config.json`, PNG images, `.tbin` maps, and `.tmx`/`.tmj` maps with `FromFile` references — and every one of them is
+A content pack is untrusted input. It is a folder of third-party files: `manifest.json`, `content.json` and
+`config.json`, PNG images, `.tbin` maps, and `.tmx`/`.tmj` maps with `FromFile` references; and every one of them is
 read by `Analyze` or by the readers it calls (`ReadPack`, `ReadPackForCleanup`, `ReadPackConfig`, `ModMapFiles`,
 `TmxImageSources`). A crafted pack must not break, in any of them:
 
@@ -56,7 +56,7 @@ read by `Analyze` or by the readers it calls (`ReadPack`, `ReadPackForCleanup`, 
   package that directory's contents.
 - The disk cache folder. `CacheRoot` is the application's own data folder; a caller that points it at a location
   another untrusted party can write is trusting that party.
-- A pack that is merely dishonest to the player — declares a change it does not make, or claims an author it is not.
+- A pack that is merely dishonest to the player; declares a change it does not make, or claims an author it is not.
   Findings report what the files say.
 - Denial of service by installing a very large profile of individually valid packs. Reading many packs is the job;
   the memory bound is `packGrace` and the caches, and a caller controls how many packs are in a request.
