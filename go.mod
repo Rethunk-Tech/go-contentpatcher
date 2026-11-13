@@ -12,7 +12,7 @@ tool (
 
 require (
 	github.com/Rethunk-Tech/go-lenientjson v0.1.1
-	github.com/Rethunk-Tech/go-safefs v0.9.0
+	github.com/Rethunk-Tech/go-safefs v0.9.1
 	github.com/Rethunk-Tech/go-smapi v0.3.0
 	github.com/Rethunk-Tech/go-tilemask v0.1.1
 )
@@ -41,7 +41,7 @@ require (
 	github.com/OpenPeeDeeP/depguard/v2 v2.2.1 // indirect
 	github.com/Rethunk-Tech/go-desktopenv v0.9.1 // indirect
 	github.com/Rethunk-Tech/go-github v0.3.0 // indirect
-	github.com/Rethunk-Tech/go-httpkit v0.3.0 // indirect
+	github.com/Rethunk-Tech/go-httpkit v0.3.1 // indirect
 	github.com/Rethunk-Tech/go-semverish v0.3.0 // indirect
 	github.com/alecthomas/chroma/v2 v2.27.0 // indirect
 	github.com/alecthomas/go-check-sumtype v0.5.1-0.20260828200218-ae6904d28606 // indirect
