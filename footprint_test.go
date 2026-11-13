@@ -208,6 +208,48 @@ func TestPlacesMakeEditsExclusive(t *testing.T) {
 	}
 }
 
+func TestReplaceImageFromFileIgnoresCase(t *testing.T) {
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, image.NewNRGBA(image.Rect(0, 0, 16, 16))); err != nil {
+		t.Fatal(err)
+	}
+	pngs := buf.String()
+	dir := t.TempDir()
+	writeAt(t, filepath.Join(dir, "tiles", "x.png"), buf.Bytes())
+	s := editImageShapes(dir, change(t, `{"FromFile":"Tiles/X.png","PatchMode":"Replace"}`), false)
+	if len(s) != 1 || s[0].Kind != 'r' || s[0].W != 16 || s[0].H != 16 {
+		t.Fatalf("shapes %v, want 16x16 rect", s)
+	}
+
+	a := diskPack(t, "A.Pack", map[string]string{
+		"manifest.json": packManifest("A.Pack"),
+		"content.json":  `{"Changes":[{"Action":"EditImage","Target":"Maps/springobjects","FromFile":"Tiles/X.png","PatchMode":"Replace"}]}`,
+		"tiles/x.png":   pngs,
+	})
+	b := diskPack(t, "B.Pack", map[string]string{
+		"manifest.json": packManifest("B.Pack"),
+		"content.json":  `{"Changes":[{"Action":"EditImage","Target":"Maps/springobjects","ToArea":{"X":32,"Y":0,"Width":16,"Height":16}}]}`,
+	})
+	resetCaches()
+	t.Cleanup(resetCaches)
+	if found := check([]Mod{a, b}); len(found.Conflicts) != 0 {
+		t.Fatalf("conflicts = %#v, want none", found.Conflicts)
+	}
+}
+
+func TestMapSizeFromFileIgnoresCase(t *testing.T) {
+	dir := t.TempDir()
+	tmx := `<?xml version="1.0"?><map version="1.0" orientation="orthogonal" width="10" height="8" tilewidth="16"></map>`
+	writeAt(t, filepath.Join(dir, "maps", "p.tmx"), []byte(tmx))
+	s := editShapes(dir, change(t, `{"FromFile":"Maps/P.tmx"}`), false, false)
+	if len(s) != 1 || s[0].Kind != 'r' || s[0].W != 10 || s[0].H != 8 {
+		t.Fatalf("shapes %v, want 10x8 rect", s)
+	}
+	if w, h, ok := mapSize(dir, "Maps/P.tmx"); !ok || w != 10 || h != 8 {
+		t.Fatalf("mapSize = %d x %d ok=%v", w, h, ok)
+	}
+}
+
 func TestMapPatchWithoutToAreaUsesTheSourceMapSize(t *testing.T) {
 	dir := t.TempDir()
 	tmx := `<?xml version="1.0"?><map version="1.0" orientation="orthogonal" width="10" height="8" tilewidth="16"></map>`

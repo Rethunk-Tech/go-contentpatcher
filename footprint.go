@@ -766,6 +766,10 @@ func pngSize(root, rel string) (w, h int, ok bool) {
 	if rel == "" || hasToken(rel) || !strings.EqualFold(filepath.Ext(rel), ".png") {
 		return 0, 0, false
 	}
+	rel, ok = foldedRel(root, rel)
+	if !ok {
+		return 0, 0, false
+	}
 	f, err := os.OpenInRoot(root, filepath.FromSlash(rel))
 	if err != nil {
 		return 0, 0, false
@@ -798,7 +802,12 @@ func mapFormat(rel string) (tilemask.Format, bool) {
 
 // decodeMap reads a map's occupied tiles; layer names come back lower-cased and trimmed.
 func decodeMap(root, rel string) (tilemask.Map, bool) {
-	abs, ok := inside(root, rel)
+	rel = strings.TrimSpace(rel)
+	resolved, folded := foldedRel(root, rel)
+	if !folded {
+		return tilemask.Map{}, false
+	}
+	abs, ok := inside(root, resolved)
 	format, known := mapFormat(rel)
 	if !ok || !known {
 		return tilemask.Map{}, false
@@ -932,7 +941,11 @@ func mapSize(root, rel string) (w, h int, ok bool) {
 	if rel == "" || hasToken(rel) || !known {
 		return 0, 0, false
 	}
-	abs, inRoot := inside(root, rel)
+	resolved, folded := foldedRel(root, rel)
+	if !folded {
+		return 0, 0, false
+	}
+	abs, inRoot := inside(root, resolved)
 	if !inRoot {
 		return 0, 0, false
 	}
