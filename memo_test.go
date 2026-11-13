@@ -65,6 +65,29 @@ func TestAnalyzeMemoServesUnchangedModsAndNoticesAnEditedLoadFile(t *testing.T) 
 	}
 }
 
+func TestAnalyzeMemoDoesNotDropExtendHints(t *testing.T) {
+	dataHome(t)
+	resetCaches()
+	t.Cleanup(resetCaches)
+
+	content := `{"Format":"2.0.0","Changes":[{"Action":"Load","Target":"Data/Thing","FromFile":"thing.json"}]}`
+	a := diskPack(t, "A.Pack", map[string]string{"manifest.json": packManifest("A.Pack"), "content.json": content, "thing.json": `{"a":1}`})
+	age(t, time.Now().Add(-time.Hour), a.Folder)
+	mods := []Mod{a}
+	plain := Request{Enabled: mods, All: mods, Order: testOrder}
+	if got := analyze(plain); len(got.Hints) != 0 {
+		t.Fatalf("base hints = %#v", got.Hints)
+	}
+	hint := Hint{Key: "a", Field: "Theme", Suggested: []string{"Dark"}}
+	extended := Request{Enabled: mods, All: mods, Order: testOrder, Extend: func(*PartsRun, []Mod) Extension {
+		return Extension{Hints: []Hint{hint}}
+	}}
+	got := analyze(extended)
+	if len(got.Hints) != 1 || !reflect.DeepEqual(got.Hints[0], hint) {
+		t.Fatalf("hints = %#v, want the Extend hint", got.Hints)
+	}
+}
+
 func TestAnalyzeMemoKeepsImageOverlapDepthsApart(t *testing.T) {
 	dataHome(t)
 	resetCaches()

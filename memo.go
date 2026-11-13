@@ -65,11 +65,11 @@ var buildStamp = sync.OnceValue(func() string {
 	return stamp
 })
 
-// analysisKey covers what a check reads besides files: the build, the mods and the scan depth. The request's own
-// callbacks are left out: they are the caller's code, not part of what a check of these mods finds.
+// analysisKey covers what a check reads besides files: the build, the mods, the scan depth, and whether
+// Extend ran (its hints are stored with the findings). Other callbacks stay out: they are the caller's code.
 func analysisKey(in Request) string {
 	h := sha256.New()
-	_, _ = fmt.Fprintf(h, "%s|%d|%t|%#v|%#v", buildStamp(), contentPackParserVersion, in.SkipImageOverlap, in.Enabled, in.All)
+	_, _ = fmt.Fprintf(h, "%s|%d|%t|%t|%#v|%#v", buildStamp(), contentPackParserVersion, in.SkipImageOverlap, in.Extend != nil, in.Enabled, in.All)
 	return hex.EncodeToString(h.Sum(nil))
 }
 
