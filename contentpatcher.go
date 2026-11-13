@@ -1105,6 +1105,9 @@ func scanContentFile(root, rel string, seen map[string]bool, outer When, pack *P
 	}
 	seen[key] = true
 	abs, ok := inside(root, rel)
+	if folded, found := foldedRel(root, rel); found {
+		abs, ok = inside(root, folded)
+	}
 	if !ok {
 		return
 	}

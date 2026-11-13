@@ -1037,3 +1037,14 @@ func TestFoldedRelFindsWhatTheEarlierLookupFound(t *testing.T) {
 		}
 	}
 }
+
+func TestIncludeResolvesPathIgnoringCase(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "content.json", `{"Changes":[{"Action":"Include","FromFile":"Data/Extra.json"}]}`)
+	writeFile(t, root, "data/extra.json", `{"Changes":[{"Action":"EditData","Target":"Data/Objects","Entries":{"1":"x"}}]}`)
+	pack := Pack{Mentions: map[string]bool{}, Schema: map[string]Schema{}}
+	scanContentFile(root, "content.json", map[string]bool{}, When{}, &pack)
+	if len(pack.Patches) != 1 {
+		t.Fatalf("patches = %#v, want the included file's one patch", pack.Patches)
+	}
+}
