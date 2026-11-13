@@ -1048,3 +1048,13 @@ func TestIncludeResolvesPathIgnoringCase(t *testing.T) {
 		t.Fatalf("patches = %#v, want the included file's one patch", pack.Patches)
 	}
 }
+
+func TestReferencedMapIsStampedUnderItsRealCase(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "maps/p.tmx", `<map/>`)
+	var pack Pack
+	recordReferencedPackFiles(root, "Maps/P.tmx", false, &pack)
+	if len(pack.Files) != 1 || pack.Files[0].Path != "maps/p.tmx" || pack.Files[0].Size == absentSize {
+		t.Fatalf("files = %#v, want the real maps/p.tmx stamped", pack.Files)
+	}
+}

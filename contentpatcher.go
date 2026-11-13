@@ -1367,6 +1367,9 @@ func recordReferencedPackFiles(root, rel string, image bool, pack *Pack) {
 	if ext != ".tmx" && ext != ".tmj" {
 		return
 	}
+	if folded, ok := foldedRel(root, rel); ok {
+		rel = folded
+	}
 	if abs, ok := inside(root, rel); ok {
 		pack.recordPackFile(root, abs)
 	}
