@@ -11,9 +11,9 @@ tool (
 )
 
 require (
-	github.com/Rethunk-Tech/go-lenientjson v0.1.1
+	github.com/Rethunk-Tech/go-lenientjson v0.2.0
 	github.com/Rethunk-Tech/go-safefs v0.9.1
-	github.com/Rethunk-Tech/go-smapi v0.3.0
+	github.com/Rethunk-Tech/go-smapi v0.3.1
 	github.com/Rethunk-Tech/go-tilemask v0.1.1
 )
 
@@ -39,7 +39,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/MirrexOne/unqueryvet v1.5.4 // indirect
 	github.com/OpenPeeDeeP/depguard/v2 v2.2.1 // indirect
-	github.com/Rethunk-Tech/go-desktopenv v0.9.1 // indirect
+	github.com/Rethunk-Tech/go-desktopenv v0.9.2 // indirect
 	github.com/Rethunk-Tech/go-github v0.3.0 // indirect
 	github.com/Rethunk-Tech/go-httpkit v0.3.1 // indirect
 	github.com/Rethunk-Tech/go-semverish v0.3.0 // indirect
