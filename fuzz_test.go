@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -368,6 +370,45 @@ func FuzzCellSetRoundTrip(f *testing.F) {
 		again := encodeCellSet(decoded)
 		if !bytes.Equal(encoded, again) && decodeCellSet(again) != decoded {
 			t.Fatalf("cell-set round-trip diverged: %q -> %q", s, decoded)
+		}
+	})
+}
+
+// FuzzAnalyze checks a profile of two packs whose content.json files are fuzzed. A conflict names at least two of
+// them and a winner among them, and a second check from a clean slate finds the same.
+func FuzzAnalyze(f *testing.F) {
+	for _, a := range fuzzContentSeeds {
+		f.Add(a, []byte(`{"Changes":[{"Action":"Load","Target":"Maps/Town","FromFile":"x.tmx"}]}`))
+	}
+	f.Add([]byte(`{"Changes":[{"Action":"EditData","Target":"Data/Objects","Entries":{"1":"a"}}]}`),
+		[]byte(`{"Changes":[{"Action":"EditData","Target":"Data/Objects","Entries":{"1":"b"},"Priority":"Late"}]}`))
+	f.Fuzz(func(t *testing.T, a, b []byte) {
+		if len(a) > 1<<16 || len(b) > 1<<16 || !utf8.Valid(a) || !utf8.Valid(b) {
+			t.Skip()
+		}
+		Reset()
+		t.Cleanup(Reset)
+		mods := []Mod{
+			diskPack(t, "Fuzz.A", map[string]string{"manifest.json": packManifest("Fuzz.A"), "content.json": string(a)}),
+			diskPack(t, "Fuzz.B", map[string]string{"manifest.json": packManifest("Fuzz.B"), "content.json": string(b)}),
+		}
+		got := check(mods)
+		for _, c := range got.Conflicts {
+			if len(c.PackIDs) < 2 {
+				t.Fatalf("conflict of one pack: %+v", c)
+			}
+			for _, id := range c.PackIDs {
+				if !Equal(id, mods[0].UniqueID) && !Equal(id, mods[1].UniqueID) {
+					t.Fatalf("conflict names %q, not in the profile", id)
+				}
+			}
+			if c.WinnerID != "" && !slices.ContainsFunc(c.PackIDs, func(id ModID) bool { return Equal(id, c.WinnerID) }) {
+				t.Fatalf("winner %q is not one of %v", c.WinnerID, c.PackIDs)
+			}
+		}
+		Reset()
+		if again := check(mods); !reflect.DeepEqual(again, got) {
+			t.Fatalf("a second check differs:\n%+v\n%+v", got, again)
 		}
 	})
 }
