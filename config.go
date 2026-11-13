@@ -7,13 +7,12 @@ import (
 	"strings"
 
 	"github.com/Rethunk-Tech/go-lenientjson"
-	"github.com/Rethunk-Tech/go-safefs"
 )
 
 // ReadPackConfig reads a pack's config.json as field values by lower-case key; a missing or unreadable file is no
 // values, so every field keeps its schema default.
 func ReadPackConfig(folder string) map[string]string {
-	raw, err := safefs.ReadFile(filepath.Join(folder, "config.json"))
+	raw, err := readCappedFile(filepath.Join(folder, "config.json"))
 	if err != nil {
 		return map[string]string{}
 	}

@@ -345,6 +345,28 @@ func TestFootprintReadsAreCapped(t *testing.T) {
 	if _, ok := loadPNGAlpha(dir, "big.png", "capped-big"); ok {
 		t.Fatal("oversized PNG decoded")
 	}
+	tmx := filepath.Join(dir, "m.tmx")
+	if err := os.WriteFile(tmx, []byte(`<?xml version="1.0"?><map><image source="tiles.png"/></map>`+strings.Repeat(" ", 64)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tmxEntry os.DirEntry
+	for _, e := range entries {
+		if e.Name() == "m.tmx" {
+			tmxEntry = e
+			break
+		}
+	}
+	if tmxEntry == nil {
+		t.Fatal("m.tmx missing")
+	}
+	scan, err := MapScanFor(tmx, tmxEntry, ".tmx")
+	if err == nil && len(scan.Keys) != 0 {
+		t.Fatalf("oversized map scan = %#v", scan)
+	}
 }
 
 func TestDroppedMemoLeavesHeldMaskIntact(t *testing.T) {

@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-
-	"github.com/Rethunk-Tech/go-safefs"
 )
 
 // MapFileList is one mod folder's .tmx and .tbin files for its store key. A store item never changes after it is
@@ -369,7 +367,7 @@ func MapScanFor(path string, entry os.DirEntry, ext string) (MapScan, error) {
 	if hit && cached.Size == info.Size() && cached.ModTime == info.ModTime().UnixNano() {
 		return cached, nil
 	}
-	raw, err := safefs.ReadFile(path)
+	raw, err := readCappedFile(path)
 	if err != nil {
 		return MapScan{}, err
 	}

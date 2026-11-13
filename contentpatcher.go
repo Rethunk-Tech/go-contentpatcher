@@ -1051,7 +1051,7 @@ func configSchemaEntries(contentJSON []byte) (map[string]configSchemaEntry, erro
 }
 
 func readConfigSchema(root string) map[string]Schema {
-	raw, err := safefs.ReadFile(filepath.Join(root, "content.json"))
+	raw, err := readCappedFile(filepath.Join(root, "content.json"))
 	if err != nil {
 		return nil
 	}
@@ -1109,7 +1109,7 @@ func scanContentFile(root, rel string, seen map[string]bool, outer When, pack *P
 		return
 	}
 	pack.recordPackFile(root, abs)
-	raw, err := safefs.ReadFile(abs)
+	raw, err := readCappedFile(abs)
 	if err != nil {
 		return
 	}

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/Rethunk-Tech/go-lenientjson"
@@ -146,5 +147,31 @@ func TestContentPatcherJSONNoise(t *testing.T) {
 	got := check([]Mod{im, peer})
 	if len(got.Conflicts) != 1 || got.Conflicts[0].Target != "maps/springobjects" {
 		t.Fatalf("got %+v", got.Conflicts)
+	}
+}
+
+func TestReadPackCapsOversizedContentJSON(t *testing.T) {
+	old := footprintReadCap
+	footprintReadCap = 64
+	t.Cleanup(func() { footprintReadCap = old })
+	resetCaches()
+	t.Cleanup(resetCaches)
+
+	content := `{"Changes":[{"Action":"Load","Target":"Data/Thing","FromFile":"x.json"}]}` + strings.Repeat(" ", 80)
+	pack := ReadPack(contentPack(t, "Cap.Pack", content), false)
+	if len(pack.Patches) != 0 {
+		t.Fatalf("patches = %d, want none for oversized content.json", len(pack.Patches))
+	}
+}
+
+func TestReadPackConfigCapsOversizedFile(t *testing.T) {
+	old := footprintReadCap
+	footprintReadCap = 64
+	t.Cleanup(func() { footprintReadCap = old })
+
+	dir := t.TempDir()
+	writeAt(t, filepath.Join(dir, "config.json"), []byte(`{"Theme":"Dark"}`+strings.Repeat(" ", 64)))
+	if got := ReadPackConfig(dir); len(got) != 0 {
+		t.Fatalf("config = %#v, want empty for oversized config.json", got)
 	}
 }
