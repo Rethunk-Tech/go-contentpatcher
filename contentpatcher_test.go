@@ -175,3 +175,59 @@ func TestReadPackConfigCapsOversizedFile(t *testing.T) {
 		t.Fatalf("config = %#v, want empty for oversized config.json", got)
 	}
 }
+
+func TestIncludeSameFileDifferentWhenBothLoad(t *testing.T) {
+	m := diskPack(t, "Inc.When", map[string]string{
+		"manifest.json": packManifest("Inc.When"),
+		"content.json": `{"Changes":[
+			{"Action":"Include","FromFile":"extra.json","When":{"HasMod":"A.Mod"}},
+			{"Action":"Include","FromFile":"extra.json","When":{"HasMod":"B.Mod"}}
+		]}`,
+		"extra.json": `{"Changes":[{"Action":"Load","Target":"Data/Thing","FromFile":"x.json"}]}`,
+	})
+	pack := ReadPack(m, false)
+	if len(pack.Patches) != 2 {
+		t.Fatalf("patches = %d, want 2", len(pack.Patches))
+	}
+	var sawA, sawB bool
+	for _, p := range pack.Patches {
+		for _, group := range p.When.AnyOf {
+			sawA = sawA || slices.Contains(group, SMAPI("A.Mod").Fold())
+			sawB = sawB || slices.Contains(group, SMAPI("B.Mod").Fold())
+		}
+	}
+	if !sawA || !sawB {
+		t.Fatalf("when = %#v, want HasMod A.Mod and B.Mod", pack.Patches)
+	}
+}
+
+func TestIncludeSameFileSameWhenDedupes(t *testing.T) {
+	m := diskPack(t, "Inc.Dup", map[string]string{
+		"manifest.json": packManifest("Inc.Dup"),
+		"content.json": `{"Changes":[
+			{"Action":"Include","FromFile":"extra.json","When":{"HasMod":"A.Mod"}},
+			{"Action":"Include","FromFile":"extra.json","When":{"HasMod":"A.Mod"}}
+		]}`,
+		"extra.json": `{"Changes":[{"Action":"Load","Target":"Data/Thing","FromFile":"x.json"}]}`,
+	})
+	pack := ReadPack(m, false)
+	if len(pack.Patches) != 1 {
+		t.Fatalf("patches = %d, want 1", len(pack.Patches))
+	}
+}
+
+func TestHasModArrayRejected(t *testing.T) {
+	loc := "content.json Load Data/Thing"
+	_, err := parseWhenWithTokens(map[string]json.RawMessage{"HasMod": json.RawMessage(`["A.Mod","B.Mod"]`)}, map[string]bool{}, nil, nil, loc)
+	if err == nil || !strings.Contains(err.Error(), "HasMod takes a comma-separated string") {
+		t.Fatalf("err = %v", err)
+	}
+	if !strings.Contains(err.Error(), loc) {
+		t.Fatalf("error should name the patch: %v", err)
+	}
+	m := contentPack(t, "Has.Arr", `{"Changes":[{"Action":"Load","Target":"Data/Thing","FromFile":"x.json","When":{"HasMod":["A.Mod","B.Mod"]}}]}`)
+	pack := ReadPack(m, false)
+	if len(pack.Patches) != 0 {
+		t.Fatalf("patches = %#v, want none", pack.Patches)
+	}
+}

@@ -196,7 +196,7 @@ type Pack struct {
 	Farms map[string]string
 }
 
-const contentPackParserVersion = 27
+const contentPackParserVersion = 28
 
 // absentSize stamps a file that was not there, so the cache is dropped when it appears.
 const absentSize = -1
@@ -1097,13 +1097,32 @@ type dynamicTokenDoc struct {
 	When  map[string]json.RawMessage `json:"When"`
 }
 
+// includeSeenKey keeps one Include of a file under one When. A second Include of the same
+// file with a different When is a different load; the path alone used to drop it.
+func includeSeenKey(rel string, when When) string {
+	canon, err := json.Marshal(when)
+	if err != nil {
+		return strings.ToLower(rel)
+	}
+	return strings.ToLower(rel) + "\n" + string(canon)
+}
+
 func scanContentFile(root, rel string, seen map[string]bool, outer When, pack *Pack) {
 	rel = filepath.ToSlash(rel)
-	key := strings.ToLower(rel)
-	if rel == "" || seen[key] {
+	if rel == "" {
+		return
+	}
+	pathKey := strings.ToLower(rel)
+	if seen[pathKey] {
+		return
+	}
+	key := includeSeenKey(rel, outer)
+	if seen[key] {
 		return
 	}
 	seen[key] = true
+	seen[pathKey] = true
+	defer delete(seen, pathKey)
 	abs, ok := inside(root, rel)
 	if folded, found := foldedRel(root, rel); found {
 		abs, ok = inside(root, folded)
@@ -1122,7 +1141,7 @@ func scanContentFile(root, rel string, seen map[string]bool, outer When, pack *P
 	}
 	// A dynamic token's value gates content like a change does, so its conditions count for compatibility
 	// settings too. Content Patcher reads DynamicTokens only from content.json.
-	if key == "content.json" {
+	if pathKey == "content.json" {
 		scanDynamicTokens(doc.DynamicTokens, outer, pack)
 	}
 	warmOverlayImages(root, rel, doc.Changes, pack.SkipImages)
@@ -1134,7 +1153,18 @@ func scanContentFile(root, rel string, seen map[string]bool, outer When, pack *P
 		}
 		action := strings.TrimSpace(ch.Action)
 		withConfigValues(ch.When, pack.Values)
-		when := outer.with(parseWhenWithTokens(ch.When, pack.Mentions, pack.Schema, pack.Tokens))
+		loc := rel
+		if action := strings.TrimSpace(ch.Action); action != "" {
+			loc += " " + action
+		}
+		if target := strings.TrimSpace(ch.Target); target != "" {
+			loc += " " + target
+		}
+		parsed, err := parseWhenWithTokens(ch.When, pack.Mentions, pack.Schema, pack.Tokens, loc)
+		if err != nil {
+			continue
+		}
+		when := outer.with(parsed)
 		when.Conditional = when.Conditional || len(ch.When) > 0
 		noteAssetOwners(ch.Target, pack.Mentions)
 		kind, action, shapes, included := classifyChange(root, rel, &ch, action, when, seen, pack)
@@ -1166,7 +1196,11 @@ func scanDynamicTokens(tokens []dynamicTokenDoc, outer When, pack *Pack) {
 		if !ok {
 			continue
 		}
-		pack.Patches = append(pack.Patches, Patch{Kind: "other", When: outer.with(parseWhen(tok.When, pack.Mentions, pack.Schema)), TokenName: strings.ToLower(strings.TrimSpace(tok.Name)), TokenValue: value})
+		tokenWhen, err := parseWhenWithTokens(tok.When, pack.Mentions, pack.Schema, nil, strings.TrimSpace(tok.Name))
+		if err != nil {
+			continue
+		}
+		pack.Patches = append(pack.Patches, Patch{Kind: "other", When: outer.with(tokenWhen), TokenName: strings.ToLower(strings.TrimSpace(tok.Name)), TokenValue: value})
 	}
 }
 
@@ -1395,85 +1429,95 @@ func withConfigValues(when map[string]json.RawMessage, values map[string]string)
 }
 
 func parseWhen(raw map[string]json.RawMessage, mentions map[string]bool, schema map[string]Schema) When {
-	return parseWhenWithTokens(raw, mentions, schema, nil)
+	w, _ := parseWhenWithTokens(raw, mentions, schema, nil, "")
+	return w
 }
 
-func parseWhenWithTokens(raw map[string]json.RawMessage, mentions map[string]bool, schema map[string]Schema, tokens []TokenDefinition) When {
-	return parseWhenDepth(raw, mentions, schema, tokens, 0)
+func parseWhenWithTokens(raw map[string]json.RawMessage, mentions map[string]bool, schema map[string]Schema, tokens []TokenDefinition, loc string) (When, error) {
+	return parseWhenDepth(raw, mentions, schema, tokens, 0, loc)
 }
 
-func parseWhenDepth(raw map[string]json.RawMessage, mentions map[string]bool, schema map[string]Schema, tokens []TokenDefinition, depth int) When {
+func parseWhenDepth(raw map[string]json.RawMessage, mentions map[string]bool, schema map[string]Schema, tokens []TokenDefinition, depth int, loc string) (When, error) {
 	var w When
 	for k, v := range raw {
-		addWhenCondition(&w, k, v, mentions, schema, tokens, depth)
+		if err := addWhenCondition(&w, k, v, mentions, schema, tokens, depth, loc); err != nil {
+			return When{}, err
+		}
 	}
-	return w.with(When{Spouse: spouseOf(raw, tokens), Places: placesOf(raw)})
+	return w.with(When{Spouse: spouseOf(raw, tokens), Places: placesOf(raw)}), nil
 }
 
 // addWhenCondition folds one When entry into w; entries the scan cannot read are skipped or assumed met.
-func addWhenCondition(w *When, k string, v json.RawMessage, mentions map[string]bool, schema map[string]Schema, tokens []TokenDefinition, depth int) {
+func addWhenCondition(w *When, k string, v json.RawMessage, mentions map[string]bool, schema map[string]Schema, tokens []TokenDefinition, depth int, loc string) error {
 	if hasToken(k) {
 		if merged, ok := dynamicTokenWhen(k, v, tokens, mentions, schema, depth); ok {
 			*w = w.withDefinition(merged)
 		} else {
 			w.Assumed = appendAssumed(w.Assumed, k, v, tokens)
 		}
-		return
+		return nil
 	}
 	name, arg, _ := strings.Cut(k, "|")
 	name = tokenName(name)
 	if merged, ok := dynamicTokenWhen(k, v, tokens, mentions, schema, depth); ok {
 		*w = w.withDefinition(merged)
-		return
+		return nil
 	}
 	if strings.EqualFold(name, "hasmod") {
-		addHasMod(w, strings.TrimSpace(arg), v, mentions)
-		return
+		return addHasMod(w, strings.TrimSpace(arg), v, mentions, loc)
 	}
 	if flags, ok := flagConditions(k, v); ok {
 		if len(flags) == 0 {
 			w.Assumed = appendAssumed(w.Assumed, k, v, tokens)
 		}
 		w.Flags = append(w.Flags, flags...)
-		return
+		return nil
 	}
 	field, ok := schema[strings.ToLower(name)]
 	if !ok {
 		w.Assumed = appendAssumed(w.Assumed, k, v, tokens)
-		return
+		return nil
 	}
 	var values []string
 	if !condValues(v, &values) {
-		return
+		return nil
 	}
 	if arg = strings.TrimSpace(arg); arg != "" {
 		var ok bool
 		if values, ok = containsValues(field, arg, values); !ok {
-			return
+			return nil
 		}
 	}
 	w.Config = append(w.Config, Config{Field: field.Key, Values: values, AllowMultiple: field.AllowMultiple})
+	return nil
 }
 
-func addHasMod(w *When, arg string, v json.RawMessage, mentions map[string]bool) {
+func addHasMod(w *When, arg string, v json.RawMessage, mentions map[string]bool, loc string) error {
 	if arg == "" {
 		var list string
 		if json.Unmarshal(v, &list) != nil || hasToken(list) {
-			return
+			var arr []json.RawMessage
+			if json.Unmarshal(v, &arr) == nil {
+				if loc == "" {
+					return errors.New("HasMod takes a comma-separated string")
+				}
+				return fmt.Errorf("%s: HasMod takes a comma-separated string", loc)
+			}
+			return nil
 		}
 		if ids := SplitTargets(list); len(ids) > 0 {
 			w.AnyOf = append(w.AnyOf, note(ids, mentions))
 		}
-		return
+		return nil
 	}
 	param, list, ok := strings.Cut(arg, "=")
 	if !ok || !strings.EqualFold(strings.TrimSpace(param), "contains") || hasToken(list) {
-		return
+		return nil
 	}
 	ids := note(SplitTargets(list), mentions)
 	var flags []string
 	if !condValues(v, &flags) || len(flags) != 1 {
-		return
+		return nil
 	}
 	switch strings.ToLower(flags[0]) {
 	case "true":
@@ -1481,6 +1525,7 @@ func addHasMod(w *When, arg string, v json.RawMessage, mentions map[string]bool)
 	case "false":
 		w.NoneOf = append(w.NoneOf, ids...)
 	}
+	return nil
 }
 
 // appendAssumed records a condition this scan treats as met, unless it is a spouse or place condition the
@@ -1536,7 +1581,10 @@ func dynamicTokenWhen(key string, raw json.RawMessage, tokens []TokenDefinition,
 		match = i
 	}
 	if match >= 0 && depth < 8 {
-		out = out.withDefinition(parseWhenDepth(tokens[match].When, mentions, schema, tokens, depth+1))
+		nested, err := parseWhenDepth(tokens[match].When, mentions, schema, tokens, depth+1, "")
+		if err == nil {
+			out = out.withDefinition(nested)
+		}
 	}
 	return out, true
 }
