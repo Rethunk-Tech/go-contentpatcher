@@ -16,6 +16,7 @@ import (
 	"io/fs"
 	"iter"
 	"maps"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -3309,7 +3310,7 @@ func contentPatcherPriority(kind, priority string) int {
 	priority = strings.TrimSpace(priority)
 	if priority == "" {
 		if kind == "load" {
-			return 3000
+			return math.MaxInt32
 		}
 		return 0
 	}
@@ -3340,7 +3341,8 @@ func contentPatcherPriority(kind, priority string) int {
 	case "high", "late":
 		return 1000 + offset
 	case "exclusive":
-		return 3000 + offset
+		// SMAPI ranks Exclusive at int.MaxValue, a level no Low/Medium/High level plus offset reaches.
+		return math.MaxInt32
 	default:
 		return 0
 	}

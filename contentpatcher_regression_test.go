@@ -5,6 +5,7 @@ import (
 	"compress/zlib"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"image"
 	"image/color"
 	"image/png"
@@ -1090,5 +1091,62 @@ func TestReferencedMapIsStampedUnderItsRealCase(t *testing.T) {
 	recordReferencedPackFiles(root, "Maps/P.tmx", false, &pack)
 	if len(pack.Files) != 1 || pack.Files[0].Path != "maps/p.tmx" || pack.Files[0].Size == absentSize {
 		t.Fatalf("files = %#v, want the real maps/p.tmx stamped", pack.Files)
+	}
+}
+
+// The tokens guide: "Each condition is true if any of its values match, and the patch is applied if
+// all of its conditions match." HasMod is one condition, so "A, B" is one OR, not one AND per mod.
+func TestHasModListIsOneAnyOfCondition(t *testing.T) {
+	w := parseWhen(map[string]json.RawMessage{"HasMod": json.RawMessage(`"Author.Required, Other.Mod"`)}, map[string]bool{}, nil)
+	if len(w.AnyOf) != 1 || len(w.AnyOf[0]) != 2 {
+		t.Fatalf("a comma-separated HasMod is one condition with two values: %#v", w)
+	}
+	if !w.Holds(map[string]bool{"smapi:other.mod": true}) || !w.Holds(map[string]bool{"smapi:author.required": true}) {
+		t.Fatalf("either listed mod must satisfy HasMod: %#v", w)
+	}
+	if w.Holds(map[string]bool{"smapi:unlisted.mod": true}) {
+		t.Fatalf("an unlisted mod must not satisfy HasMod: %#v", w)
+	}
+}
+
+// The Load guide: "The default levels are -1000 (low), 0 (medium), and 1000 (high)", and SMAPI ranks
+// Exclusive at int.MaxValue, so a numeric or offset priority below that is outranked by Exclusive.
+func TestExclusiveLoadOutranksNumericAndOffsetPriorities(t *testing.T) {
+	exclusive := contentPatcherPriority("load", "Exclusive")
+	if contentPatcherPriority("load", "") != exclusive {
+		t.Fatalf("a Load without Priority defaults to Exclusive")
+	}
+	for _, priority := range []string{"3000", "High + 2000", "1000000"} {
+		if contentPatcherPriority("load", priority) >= exclusive {
+			t.Fatalf("%q must rank below Exclusive", priority)
+		}
+	}
+	if contentPatcherPriority("load", "High + 2000") <= contentPatcherPriority("load", "High") {
+		t.Fatal("an offset above High must still rank above High")
+	}
+	conflict := conflictOf("load", "Maps/Test", []packHit{
+		{ID: "smapi:numeric", Name: "Numeric", Loads: []Patch{{Priority: "3000"}}, LoadClashes: map[int]bool{0: true}},
+		{ID: "smapi:exclusive", Name: "Exclusive", Loads: []Patch{{Priority: "Exclusive"}}, LoadClashes: map[int]bool{0: true}},
+	})
+	if conflict.WinnerID != "smapi:exclusive" || conflict.WinnerKind != WinnerTop {
+		t.Fatalf("an Exclusive load outranks a numeric priority below it: %#v", conflict)
+	}
+}
+
+// The tokens guide: "If you list multiple blocks for the same token name, the last one whose
+// conditions match will be used".
+func TestResolveLoadFileUsesLastMatchingDynamicToken(t *testing.T) {
+	tokens := []Patch{
+		{TokenName: "file", TokenValue: "first.png"},
+		{TokenName: "file", TokenValue: "second.png"},
+		{TokenName: "file", TokenValue: "third.png", When: When{AnyOf: [][]string{{"smapi:absent.mod"}}}},
+	}
+	got, ok := ResolveLoadFile("assets/{{File}}", "Maps/Town", tokens, map[string]bool{}, nil, nil)
+	if !ok || got != "assets/second.png" {
+		t.Fatalf("ResolveLoadFile = %q, %v; want the last matching value", got, ok)
+	}
+	got, ok = ResolveLoadFile("assets/{{File}}", "Maps/Town", tokens, map[string]bool{"smapi:absent.mod": true}, nil, nil)
+	if !ok || got != "assets/third.png" {
+		t.Fatalf("ResolveLoadFile = %q, %v; want the last value whose conditions hold", got, ok)
 	}
 }
