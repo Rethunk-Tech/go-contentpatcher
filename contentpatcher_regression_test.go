@@ -14,6 +14,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/Rethunk-Tech/go-safefs"
 )
 
 func TestLoadConflictWithBlankLoserIsCosmetic(t *testing.T) {
@@ -306,6 +308,38 @@ func TestIncludedBlankLoadsUsePackRootPath(t *testing.T) {
 	})})
 	if len(conflicts) != 1 || !conflicts[0].Cosmetic {
 		t.Fatalf("included blank load should be cosmetic: %#v", conflicts)
+	}
+}
+
+// A directory symlink inside a pack must not carry a read out of the pack: safefs.Open keeps only the last path
+// element inside the folder it opens, so the folder rel names decides where the read lands.
+func TestIncludesStayInPackThroughADirectorySymlink(t *testing.T) {
+	parent := t.TempDir()
+	root, outside := filepath.Join(parent, "pack"), filepath.Join(parent, "outside")
+	writeFile(t, root, "manifest.json", `{"UniqueID":"Test.Pack","ContentPackFor":{"UniqueID":"Pathoschild.ContentPatcher"}}`)
+	writeFile(t, root, "content.json", `{"Changes":[
+		{"Action":"Include","FromFile":"link/leaked.json"},
+		{"Action":"EditImage","Target":"Maps/Leaked","FromFile":"link/leaked.png","PatchMode":"Overlay"}
+	]}`)
+	writeFile(t, outside, "leaked.json", `{"Changes":[{"Action":"EditData","Target":"Data/Leaked","Entries":{"x":"y"}}]}`)
+	writePNG(t, filepath.Join(outside, "leaked.png"), image.NewNRGBA(image.Rect(0, 0, 32, 16)))
+	if err := safefs.LinkDir(filepath.Join(root, "link"), outside); err != nil {
+		t.Skipf("no directory links here: %v", err)
+	}
+	dataHome(t)
+	resetCaches()
+	t.Cleanup(resetCaches)
+
+	pack := ReadPack(packFromDisk(Mod{Key: "symlink", Enabled: true, Folder: root, UniqueID: SMAPI("Test.Pack"), Name: "Symlink"}), false)
+	for _, patch := range pack.Patches {
+		if strings.EqualFold(filepath.ToSlash(patch.Source), "link/leaked.json") {
+			t.Fatalf("an Include through a directory symlink read a file outside the pack: %+v", patch)
+		}
+	}
+	for _, file := range pack.Files {
+		if strings.HasPrefix(filepath.ToSlash(file.Path), "link/") {
+			t.Fatalf("stamped %q through a directory symlink", file.Path)
+		}
 	}
 }
 

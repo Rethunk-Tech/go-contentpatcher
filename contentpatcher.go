@@ -2047,12 +2047,37 @@ func NormalizeTarget(s string) string {
 	return strings.ToLower(s)
 }
 
+// inside resolves a pack-relative path against the pack root. The folder rel names is resolved the way the file
+// system resolves it, so a symlinked folder partway along rel cannot carry a read out of the pack; safefs.Open keeps
+// only the last element inside the folder it opens, so that folder is what decides where the read lands.
 func inside(root, rel string) (string, bool) {
 	local := filepath.FromSlash(rel)
 	if !filepath.IsLocal(local) {
 		return "", false
 	}
-	return filepath.Join(root, local), true
+	abs := filepath.Join(root, local)
+	if !dirUnderResolved(root, filepath.Dir(abs)) {
+		return "", false
+	}
+	return abs, true
+}
+
+// dirUnderResolved reports whether dir resolves to root or below it. A dir that is not there yet cannot lead out of
+// the pack, so it counts as inside: the miss is still stamped, and a file that appears there later invalidates the
+// pack.
+func dirUnderResolved(root, dir string) bool {
+	realRoot, err := safefs.EvalSymlinks(root)
+	if err != nil {
+		return false
+	}
+	real, err := safefs.EvalSymlinks(dir)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return true
+	case err != nil:
+		return false
+	}
+	return real == realRoot || safefs.UnderRoot(realRoot, real)
 }
 
 func preloadContentPacks(mods []Mod, skip bool) {
