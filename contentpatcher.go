@@ -191,13 +191,23 @@ type Pack struct {
 	Mentions    map[string]bool
 	Schema      map[string]Schema
 	Skips       int
+	// Problems are the changes the scan refused, so a patch that silently does nothing is reported instead.
+	Problems []Problem
 	// skipImages is whether the pack's image-edit shapes were read without the pixel-overlap scan.
 	SkipImages bool
 	// farms maps the map asset of each custom farm the pack adds to Data/AdditionalFarms to the farm's id.
 	Farms map[string]string
 }
 
-const contentPackParserVersion = 28
+// Problem is a change the pack scan refused: the content file it is in, its position in that file's Changes (-1
+// for a dynamic token, whose name the reason starts with), and why. A change with a problem is not applied.
+type Problem struct {
+	File   string `json:"file"`
+	Index  int    `json:"index"`
+	Reason string `json:"reason"`
+}
+
+const contentPackParserVersion = 29
 
 // absentSize stamps a file that was not there, so the cache is dropped when it appears.
 const absentSize = -1
@@ -228,6 +238,7 @@ type diskCachedPack struct {
 	Mentions map[string]bool       `json:"mentions,omitempty"`
 	Schema   map[string]diskSchema `json:"schema,omitempty"`
 	Skips    int                   `json:"skips,omitempty"`
+	Problems []Problem             `json:"problems,omitempty"`
 	Farms    map[string]string     `json:"farms,omitempty"`
 }
 
@@ -346,6 +357,7 @@ func diskPackOf(pack Pack) diskCachedPack {
 	out := diskCachedPack{
 		Mentions: pack.Mentions,
 		Skips:    pack.Skips,
+		Problems: pack.Problems,
 		Farms:    pack.Farms,
 	}
 	if pack.Patches != nil {
@@ -376,6 +388,7 @@ func cachedPackOfDisk(root string, disk diskCachedPack, entry diskPackEntry) Pac
 		Mentions:    disk.Mentions,
 		Schema:      make(map[string]Schema, len(disk.Schema)),
 		Skips:       disk.Skips,
+		Problems:    disk.Problems,
 		SkipImages:  entry.SkipImages,
 		Farms:       disk.Farms,
 	}
@@ -774,6 +787,30 @@ func readContentPackWithEnabled(im Mod, requireEnabled, skip bool) Pack {
 	return pack
 }
 
+// conditionError is a condition the scan cannot read, as the reader reports it: Loc names the change it gates, and
+// Reason stands alone for a caller that already knows which change it asked about.
+type conditionError struct {
+	Loc    string
+	Reason string
+}
+
+func (e *conditionError) Error() string {
+	if e.Loc == "" {
+		return e.Reason
+	}
+	return e.Loc + ": " + e.Reason
+}
+
+// recordProblem notes a change the scan refused, so a mod author learns why it does nothing. The reason drops the
+// error's location, which File and Index already name.
+func (p *Pack) recordProblem(file string, index int, err error) {
+	reason := err.Error()
+	if refused, ok := errors.AsType[*conditionError](err); ok {
+		reason = refused.Reason
+	}
+	p.Problems = append(p.Problems, Problem{File: file, Index: index, Reason: reason})
+}
+
 func (p *Pack) recordPackFile(root, abs string) {
 	if !safefs.UnderRoot(root, abs) {
 		return
@@ -1163,6 +1200,7 @@ func scanContentFile(root, rel string, seen map[string]bool, outer When, pack *P
 		}
 		parsed, err := parseWhenWithTokens(ch.When, pack.Mentions, pack.Schema, pack.Tokens, loc)
 		if err != nil {
+			pack.recordProblem(rel, i, err)
 			continue
 		}
 		when := outer.with(parsed)
@@ -1199,6 +1237,7 @@ func scanDynamicTokens(tokens []dynamicTokenDoc, outer When, pack *Pack) {
 		}
 		tokenWhen, err := parseWhenWithTokens(tok.When, pack.Mentions, pack.Schema, nil, strings.TrimSpace(tok.Name))
 		if err != nil {
+			pack.recordProblem("content.json", -1, err)
 			continue
 		}
 		pack.Patches = append(pack.Patches, Patch{Kind: "other", When: outer.with(tokenWhen), TokenName: strings.ToLower(strings.TrimSpace(tok.Name)), TokenValue: value})
@@ -1499,10 +1538,7 @@ func addHasMod(w *When, arg string, v json.RawMessage, mentions map[string]bool,
 		if json.Unmarshal(v, &list) != nil || hasToken(list) {
 			var arr []json.RawMessage
 			if json.Unmarshal(v, &arr) == nil {
-				if loc == "" {
-					return errors.New("HasMod takes a comma-separated string")
-				}
-				return fmt.Errorf("%s: HasMod takes a comma-separated string", loc)
+				return &conditionError{Loc: loc, Reason: "HasMod takes a comma-separated string"}
 			}
 			return nil
 		}

@@ -230,4 +230,18 @@ func TestHasModArrayRejected(t *testing.T) {
 	if len(pack.Patches) != 0 {
 		t.Fatalf("patches = %#v, want none", pack.Patches)
 	}
+	if len(pack.Problems) != 1 {
+		t.Fatalf("problems = %#v, want the refused HasMod change", pack.Problems)
+	}
+	problem := pack.Problems[0]
+	if problem.File != "content.json" || problem.Index != 0 {
+		t.Fatalf("problem = %#v, want content.json change 0", problem)
+	}
+	if !strings.Contains(problem.Reason, "HasMod takes a comma-separated string") {
+		t.Fatalf("reason = %q, want it to name the HasMod rule", problem.Reason)
+	}
+	valid := contentPack(t, "Has.OK", `{"Changes":[{"Action":"Load","Target":"Data/Thing","FromFile":"x.json","When":{"HasMod":"A.Mod, B.Mod"}}]}`)
+	if problems := ReadPack(valid, false).Problems; len(problems) != 0 {
+		t.Fatalf("problems = %#v, want none", problems)
+	}
 }
