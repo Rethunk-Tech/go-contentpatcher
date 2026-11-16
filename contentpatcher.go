@@ -2070,14 +2070,14 @@ func dirUnderResolved(root, dir string) bool {
 	if err != nil {
 		return false
 	}
-	real, err := safefs.EvalSymlinks(dir)
+	resolved, err := safefs.EvalSymlinks(dir)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return true
 	case err != nil:
 		return false
 	}
-	return real == realRoot || safefs.UnderRoot(realRoot, real)
+	return resolved == realRoot || safefs.UnderRoot(realRoot, resolved)
 }
 
 func preloadContentPacks(mods []Mod, skip bool) {
