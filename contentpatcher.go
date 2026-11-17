@@ -395,7 +395,7 @@ func cachedPackOfDisk(root string, disk diskCachedPack, entry diskPackEntry) Pac
 	if disk.Patches != nil {
 		out.Patches = make([]Patch, len(disk.Patches))
 		for i, patch := range disk.Patches {
-			out.Patches[i] = cpPatchOfDisk(root, patch)
+			out.Patches[i] = cpPatchOfDisk(patch)
 		}
 	}
 	if disk.Tokens != nil {
@@ -452,7 +452,7 @@ func diskPatchOf(patch Patch) diskPatch {
 	return out
 }
 
-func cpPatchOfDisk(_ string, patch diskPatch) Patch {
+func cpPatchOfDisk(patch diskPatch) Patch {
 	when := cpWhenOfDisk(patch.When)
 	out := Patch{
 		Kind:          patch.Kind,
@@ -1206,7 +1206,7 @@ func scanContentFile(root, rel string, seen map[string]bool, outer When, pack *P
 		when := outer.with(parsed)
 		when.Conditional = when.Conditional || len(ch.When) > 0
 		noteAssetOwners(ch.Target, pack.Mentions)
-		kind, action, shapes, included := classifyChange(root, rel, &ch, action, when, seen, pack)
+		kind, action, shapes, included := classifyChange(root, &ch, action, when, seen, pack)
 		if included {
 			continue
 		}
@@ -1246,11 +1246,11 @@ func scanDynamicTokens(tokens []dynamicTokenDoc, outer When, pack *Pack) {
 
 // classifyChange sorts one change into a patch kind and canonical action. An Include is followed
 // recursively and reported as included, so the caller records nothing for it.
-func classifyChange(root, rel string, ch *contentChange, action string, when When, seen map[string]bool, pack *Pack) (kind, canonAction string, shapes []Shape, included bool) {
+func classifyChange(root string, ch *contentChange, action string, when When, seen map[string]bool, pack *Pack) (kind, canonAction string, shapes []Shape, included bool) {
 	switch {
 	case strings.EqualFold(action, "Include"):
 		for _, from := range SplitTargets(ch.FromFile) {
-			from = contentSourceReference(root, rel, from)
+			from = ContentReference("", from)
 			if hasToken(from) {
 				pack.Skips++
 				continue
@@ -1259,14 +1259,14 @@ func classifyChange(root, rel string, ch *contentChange, action string, when Whe
 		}
 		return "", action, nil, true
 	case strings.EqualFold(action, kindLoad):
-		ch.FromFile = contentSourceReference(root, rel, ch.FromFile)
+		ch.FromFile = ContentReference("", ch.FromFile)
 		return "load", kindLoad, nil, false
 	case strings.EqualFold(action, kindEditImage), strings.EqualFold(action, kindEditMap):
 		canonAction = kindEditMap
 		if strings.EqualFold(action, kindEditImage) {
 			canonAction = kindEditImage
 		}
-		ch.FromFile = contentSourceReference(root, rel, ch.FromFile)
+		ch.FromFile = ContentReference("", ch.FromFile)
 		recordReferencedPackFiles(root, ch.FromFile, canonAction == kindEditImage, pack)
 		shapes = editShapes(root, *ch, canonAction == kindEditImage, pack.SkipImages)
 		return editOrOther(shapes), canonAction, shapes, false
@@ -2112,10 +2112,6 @@ func ContentReference(_, rel string) string {
 		return ""
 	}
 	return filepath.ToSlash(filepath.Clean(filepath.FromSlash(rel)))
-}
-
-func contentSourceReference(_, _, rel string) string {
-	return ContentReference("content.json", rel)
 }
 
 func hasToken(s string) bool {

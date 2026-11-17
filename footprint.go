@@ -565,7 +565,7 @@ func warmOverlayImages(root, rel string, changes []json.RawMessage, skip bool) {
 			!strings.EqualFold(strings.TrimSpace(ch.PatchMode), "overlay") {
 			continue
 		}
-		for _, file := range sourceFiles(root, contentSourceReference(root, rel, ch.FromFile)) {
+		for _, file := range sourceFiles(root, ContentReference("", ch.FromFile)) {
 			wg.Go(func() {
 				decodeSlots <- struct{}{}
 				defer func() { <-decodeSlots }()

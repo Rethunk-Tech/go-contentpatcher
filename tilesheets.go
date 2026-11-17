@@ -376,9 +376,9 @@ func MapScanFor(path string, entry os.DirEntry, ext string) (MapScan, error) {
 	}
 	scan := MapScan{Size: info.Size(), ModTime: info.ModTime().UnixNano()}
 	if ext == ".tbin" {
-		scan.Runs = printableRuns(raw)
+		scan.Runs = PrintableRuns(raw)
 	} else {
-		for _, source := range tmxImageSources(raw) {
+		for _, source := range TmxImageSources(raw) {
 			normalized := NormalizeAsset(source)
 			scan.Keys = append(scan.Keys, normalized, filepath.Base(normalized))
 		}
@@ -421,9 +421,6 @@ func TmxImageSources(raw []byte) []string {
 	}
 }
 
-// tmxImageSources is TmxImageSources for the scan.
-func tmxImageSources(raw []byte) []string { return TmxImageSources(raw) }
-
 // PrintableRuns returns the distinct lower-cased runs of printable ASCII in a binary map,
 // which is where a .tbin names its tilesheets; the tile data between them is dropped.
 func PrintableRuns(raw []byte) []string {
@@ -453,5 +450,3 @@ func PrintableRuns(raw []byte) []string {
 	flush(len(raw))
 	return runs
 }
-
-func printableRuns(raw []byte) []string { return PrintableRuns(raw) }
