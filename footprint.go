@@ -551,10 +551,10 @@ func pngFileKey(root, rel string) (string, bool) {
 // decodeSlots bounds the image decodes running at once across every pack being read.
 var decodeSlots = make(chan struct{}, max(1, runtime.GOMAXPROCS(0)))
 
-// warmOverlayImages decodes the images of rel's overlay edits on every core before the serial scan reads their
+// warmOverlayImages decodes the images of overlay edits on every core before the serial scan reads their
 // shapes: a recolour pack overlays hundreds of large sheets, and decoding them one by one made that single pack
 // the longest part of a cold check.
-func warmOverlayImages(root, rel string, changes []json.RawMessage, skip bool) {
+func warmOverlayImages(root string, changes []json.RawMessage, skip bool) {
 	if skip {
 		return
 	}

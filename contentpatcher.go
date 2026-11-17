@@ -381,7 +381,7 @@ func diskPackOf(pack Pack) diskCachedPack {
 	return out
 }
 
-func cachedPackOfDisk(root string, disk diskCachedPack, entry diskPackEntry) Pack {
+func cachedPackOfDisk(disk diskCachedPack, entry diskPackEntry) Pack {
 	out := Pack{
 		Fingerprint: entry.Fingerprint,
 		Files:       entry.Files,
@@ -750,7 +750,7 @@ func readContentPackWithEnabled(im Mod, requireEnabled, skip bool) Pack {
 	if cachePath != "" {
 		if entry, ok := diskPackEntryFor(root); ok && entry.SkipImages == skip && packFingerprintValid(root, entry.Files, entry.Fingerprint) {
 			if disk, ok := decodeDiskPack(entry.Pack); ok {
-				pack := cachedPackOfDisk(root, disk, entry)
+				pack := cachedPackOfDisk(disk, entry)
 				packCache.Store(root, pack)
 				packValidated.Store(root, true)
 				return pack
@@ -1182,7 +1182,7 @@ func scanContentFile(root, rel string, seen map[string]bool, outer When, pack *P
 	if pathKey == "content.json" {
 		scanDynamicTokens(doc.DynamicTokens, outer, pack)
 	}
-	warmOverlayImages(root, rel, doc.Changes, pack.SkipImages)
+	warmOverlayImages(root, doc.Changes, pack.SkipImages)
 	var dynamicValues map[string]string
 	for i, rawChange := range doc.Changes {
 		var ch contentChange
