@@ -3,13 +3,18 @@ package contentpatcher
 import (
 	"bytes"
 	"encoding/json"
+	"image"
+	"image/png"
 	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/Rethunk-Tech/go-tilemask"
 )
 
 // FuzzContentPack feeds a pack's content.json and one file it can name (as an Include, a Load or EditData source, a
@@ -104,6 +109,8 @@ func FuzzReadPack(f *testing.F) {
 		if len(content) > 1<<16 || len(config) > 1<<16 {
 			t.Skip()
 		}
+		Reset()
+		t.Cleanup(Reset)
 		dir := t.TempDir()
 		if err := os.WriteFile(filepath.Join(dir, "content.json"), content, 0o600); err != nil {
 			t.Skip()
@@ -120,6 +127,11 @@ func FuzzReadPack(f *testing.F) {
 			ContentPackFor: contentPatcherID,
 		}
 		pack := ReadPack(mod, true)
+		for _, s := range pack.Files {
+			if filepath.IsAbs(s.Path) || s.Path == ".." || strings.HasPrefix(filepath.ToSlash(s.Path), "../") {
+				t.Fatalf("stamped %q outside the pack", s.Path)
+			}
+		}
 		if pack.Patches == nil {
 			return
 		}
@@ -262,7 +274,16 @@ func FuzzConfigValue(f *testing.F) {
 		if len(raw) > 1<<16 {
 			t.Skip()
 		}
-		_, _ = ConfigValue(raw)
+		got, ok := ConfigValue(raw)
+		if !ok {
+			return
+		}
+		if !utf8.ValidString(got) {
+			t.Fatalf("ConfigValue returned invalid UTF-8 %q for %q", got, raw)
+		}
+		if scalar, scalarOK := ScalarValue(raw); scalarOK && scalar != got {
+			t.Fatalf("ConfigValue(%q) = %q, ScalarValue = %q", raw, got, scalar)
+		}
 	})
 }
 
@@ -291,7 +312,15 @@ func FuzzReadPackConfig(f *testing.F) {
 		if err := os.WriteFile(filepath.Join(dir, "config.json"), raw, 0o600); err != nil {
 			t.Skip()
 		}
-		_ = ReadPackConfig(dir)
+		got := ReadPackConfig(dir)
+		for k, v := range got {
+			if k != strings.ToLower(k) {
+				t.Fatalf("ReadPackConfig key %q is not lower-case", k)
+			}
+			if !utf8.ValidString(v) {
+				t.Fatalf("ReadPackConfig[%q] invalid UTF-8 %q", k, v)
+			}
+		}
 	})
 }
 
@@ -302,7 +331,11 @@ func FuzzTmxImageSources(f *testing.F) {
 		if len(raw) > 1<<16 {
 			t.Skip()
 		}
-		_ = TmxImageSources(raw)
+		for _, source := range TmxImageSources(raw) {
+			if !bytes.Contains(raw, []byte(source)) {
+				t.Fatalf("TmxImageSources invented %q from %q", source, raw)
+			}
+		}
 	})
 }
 
@@ -313,13 +346,23 @@ func FuzzPrintableRuns(f *testing.F) {
 		if len(raw) > 1<<16 {
 			t.Skip()
 		}
-		_ = PrintableRuns(raw)
+		for _, run := range PrintableRuns(raw) {
+			if len(run) < 3 || run != strings.ToLower(run) {
+				t.Fatalf("PrintableRuns returned %q", run)
+			}
+			for i := 0; i < len(run); i++ {
+				if run[i] < ' ' || run[i] > '~' {
+					t.Fatalf("PrintableRuns returned non-printable %q", run)
+				}
+			}
+		}
 	})
 }
 
 func FuzzMapScanFor(f *testing.F) {
 	f.Add([]byte(`<map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16"><layer name="Back" width="1" height="1"><data encoding="csv">0</data></layer></map>`), ".tmx")
 	f.Add([]byte(`{"width":1,"height":1}`), ".tmj")
+	f.Add([]byte("tBIN10\x00\x00\x00\x00spring_town"), ".tbin")
 	f.Fuzz(func(t *testing.T, raw []byte, ext string) {
 		if len(raw) > 1<<16 {
 			t.Skip()
@@ -338,7 +381,20 @@ func FuzzMapScanFor(f *testing.F) {
 		if err != nil || len(entries) == 0 {
 			t.Skip()
 		}
-		_, _ = MapScanFor(path, entries[0], ext)
+		scan, err := MapScanFor(path, entries[0], ext)
+		if err != nil {
+			return
+		}
+		for _, key := range scan.Keys {
+			if key != strings.ToLower(key) || strings.Contains(key, "\\") {
+				t.Fatalf("MapScanFor key %q", key)
+			}
+		}
+		for _, run := range scan.Runs {
+			if run != strings.ToLower(run) {
+				t.Fatalf("MapScanFor run %q", run)
+			}
+		}
 	})
 }
 
@@ -350,7 +406,13 @@ func FuzzNormalizeAsset(f *testing.F) {
 		if len(s) > 1<<16 {
 			t.Skip()
 		}
-		_ = NormalizeAsset(s)
+		got := NormalizeAsset(s)
+		if strings.Contains(got, "\\") || strings.HasPrefix(got, "./") || strings.HasPrefix(got, "../") {
+			t.Fatalf("NormalizeAsset(%q) = %q still has a prefix to fold", s, got)
+		}
+		if got != strings.ToLower(got) {
+			t.Fatalf("NormalizeAsset(%q) = %q is not lower-case", s, got)
+		}
 	})
 }
 
@@ -409,6 +471,290 @@ func FuzzAnalyze(f *testing.F) {
 		Reset()
 		if again := check(mods); !reflect.DeepEqual(again, got) {
 			t.Fatalf("a second check differs:\n%+v\n%+v", got, again)
+		}
+	})
+}
+
+func FuzzFoldedRel(f *testing.F) {
+	for _, seed := range []string{"", "a.png", "data.json", "../decoy", "/etc/passwd", `assets\a.png`, "a/./b", "..", ".", "a/../../x"} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, rel string) {
+		if len(rel) > 1<<12 || !utf8.ValidString(rel) {
+			t.Skip()
+		}
+		parent := t.TempDir()
+		root, decoy := filepath.Join(parent, "pack"), filepath.Join(parent, "decoy")
+		writeAt(t, filepath.Join(root, "a.png"), []byte("x"))
+		writeAt(t, filepath.Join(decoy, "secret"), []byte("leak"))
+		got, ok := foldedRel(root, rel)
+		if !ok {
+			return
+		}
+		slash := filepath.ToSlash(got)
+		if filepath.IsAbs(got) || got == ".." || strings.HasPrefix(slash, "../") {
+			t.Fatalf("foldedRel(%q) = %q escaped", rel, got)
+		}
+		abs := filepath.Join(root, filepath.FromSlash(got))
+		relToRoot, err := filepath.Rel(root, abs)
+		if err != nil || strings.HasPrefix(relToRoot, "..") {
+			t.Fatalf("foldedRel(%q) = %q is not under root", rel, got)
+		}
+		if strings.Contains(slash, "decoy") {
+			t.Fatalf("foldedRel(%q) = %q named the decoy", rel, got)
+		}
+	})
+}
+
+func FuzzDecodeMap(f *testing.F) {
+	f.Add([]byte(`<map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16"><layer name="Back" width="1" height="1"><data encoding="csv">0</data></layer></map>`), ".tmx")
+	f.Add([]byte(`{"width":1,"height":1,"layers":[{"name":"Back","data":[0]}]}`), ".tmj")
+	f.Fuzz(func(t *testing.T, raw []byte, ext string) {
+		if len(raw) > 1<<16 {
+			t.Skip()
+		}
+		switch ext {
+		case ".tmx", ".tmj":
+		default:
+			ext = ".tmx"
+		}
+		root := t.TempDir()
+		name := "map" + ext
+		writeAt(t, filepath.Join(root, name), raw)
+		decoded, ok := decodeMap(root, name)
+		if !ok {
+			return
+		}
+		if decoded.Width < 0 || decoded.Height < 0 {
+			t.Fatalf("decodeMap size %d x %d", decoded.Width, decoded.Height)
+		}
+		n := 0
+		for _, layer := range decoded.Layers {
+			if layer.Name != strings.ToLower(strings.TrimSpace(layer.Name)) {
+				t.Fatalf("layer name %q not folded", layer.Name)
+			}
+			n += len(layer.Tiles)
+		}
+		if int64(n) > tilemask.DefaultMaxTiles {
+			t.Fatalf("decodeMap kept %d tiles, cap %d", n, tilemask.DefaultMaxTiles)
+		}
+	})
+}
+
+func FuzzCropImageDataURL(f *testing.F) {
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, image.NewNRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+		f.Fatal(err)
+	}
+	f.Add(buf.Bytes(), 0, 0, 1, 1)
+	f.Add([]byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x75\x30\x00\x00\x75\x30\x08\x02\x00\x00\x00\x00\x00\x00\x00"), 0, 0, 1, 1)
+	f.Fuzz(func(t *testing.T, raw []byte, x, y, w, h int) {
+		if len(raw) > 1<<16 {
+			t.Skip()
+		}
+		url, err := cropImageDataURL(raw, x, y, w, h)
+		if err != nil {
+			return
+		}
+		if !strings.HasPrefix(url, "data:image/png;base64,") {
+			t.Fatalf("crop returned %q", url[:min(len(url), 64)])
+		}
+	})
+}
+
+func FuzzParseWhen(f *testing.F) {
+	for _, seed := range []string{
+		`{"HasMod":"X.Y"}`,
+		`{"HasMod |contains=A.B": false}`,
+		`{"HasMod":"A, B"}`,
+		`{"Mode":"A"}`,
+		`{"Season":"spring"}`,
+		`{"HasMod |contains=Fixture.LoadB": false}`,
+	} {
+		f.Add([]byte(seed))
+	}
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		if len(raw) > 1<<16 {
+			t.Skip()
+		}
+		var doc map[string]json.RawMessage
+		if json.Unmarshal(raw, &doc) != nil {
+			return
+		}
+		schema := map[string]Schema{
+			"mode":   {Key: "Mode", AllowValues: []string{"A", "B"}, DefaultValue: "A"},
+			"season": {Key: "Season", AllowValues: []string{"spring", "summer"}},
+		}
+		when := parseWhen(doc, map[string]bool{}, schema)
+		_ = when.Holds(map[string]bool{})
+		_ = DynamicWhenHolds(when, nil, map[string]bool{}, schema, nil)
+	})
+}
+
+func FuzzAreaOf(f *testing.F) {
+	for _, seed := range []string{
+		`{"X":0,"Y":0,"Width":2,"Height":2}`,
+		`{"X":"1","Y":"2","Width":"3","Height":"4"}`,
+		`{"x":0,"y":0}`,
+		`{}`,
+	} {
+		f.Add([]byte(seed))
+	}
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		if len(raw) > 1<<16 {
+			t.Skip()
+		}
+		got, ok := areaOf(raw)
+		if !ok {
+			return
+		}
+		if got.Kind != 'r' {
+			t.Fatalf("areaOf kind %q", got.Kind)
+		}
+	})
+}
+
+func FuzzContentPatcherPriority(f *testing.F) {
+	for _, seed := range []string{"", "0", "1", "-1", "Low", "Late", "Exclusive", "Low+10", "High-5", "medium", "Early+100"} {
+		f.Add("load", seed)
+		f.Add("editimage", seed)
+	}
+	f.Fuzz(func(t *testing.T, kind, priority string) {
+		if len(kind) > 1<<12 || len(priority) > 1<<12 {
+			t.Skip()
+		}
+		got := contentPatcherPriority(kind, priority)
+		if trimmed := strings.TrimSpace(priority); trimmed != "" {
+			if n, err := strconv.Atoi(trimmed); err == nil && got != n {
+				t.Fatalf("contentPatcherPriority(%q) = %d, want %d", priority, got, n)
+			}
+		}
+		_ = strongerContentPatcherPriority(priority, "Late", kind)
+	})
+}
+
+func cellSetKeys(s string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for p := range strings.SplitSeq(s, ";") {
+		if p == "" || seen[p] {
+			continue
+		}
+		seen[p] = true
+		out = append(out, p)
+	}
+	slices.Sort(out)
+	return out
+}
+
+func FuzzDecodeCellSet(f *testing.F) {
+	for _, seed := range []string{"", "0,0", "1,2;3,4", "32767,32767", "-1,-1;2,2"} {
+		f.Add(encodeCellSet(seed))
+	}
+	f.Add([]byte{0, 0, 0, 0, 0, 1, 0, 1, 0, 1})
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		if len(raw) > 1<<12 {
+			t.Skip()
+		}
+		decoded := decodeCellSet(raw)
+		if decoded == "" {
+			return
+		}
+		round := decodeCellSet(encodeCellSet(decoded))
+		if !slices.Equal(cellSetKeys(decoded), cellSetKeys(round)) {
+			t.Fatalf("decode/encode diverged: %q -> %q", decoded, round)
+		}
+	})
+}
+
+func FuzzDecodeDiskPack(f *testing.F) {
+	raw, err := encodeDiskPack(diskCachedPack{
+		Patches:  []diskPatch{{Kind: "load", Target: "maps/town", FromFile: "a.tmx"}},
+		Mentions: map[string]bool{"smapi:x.y": true},
+	})
+	if err != nil {
+		f.Fatal(err)
+	}
+	f.Add(raw)
+	f.Add([]byte{})
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		if len(raw) > 1<<16 {
+			t.Skip()
+		}
+		pack, ok := decodeDiskPack(raw)
+		if !ok {
+			return
+		}
+		encoded, err := encodeDiskPack(pack)
+		if err != nil {
+			t.Fatalf("re-encode: %v", err)
+		}
+		if _, ok := decodeDiskPack(encoded); !ok {
+			t.Fatal("re-encoded pack does not decode")
+		}
+	})
+}
+
+func FuzzReadPackCache(f *testing.F) {
+	var buf bytes.Buffer
+	if err := writePackCache(&buf, diskPackCache{
+		Version: contentPackParserVersion,
+		Packs: map[string]diskPackEntry{
+			"pack": {Fingerprint: "abc", Files: []FileStamp{{Path: "content.json", Size: 1}}},
+		},
+	}); err != nil {
+		f.Fatal(err)
+	}
+	f.Add(buf.Bytes())
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		if len(raw) > 1<<16 {
+			t.Skip()
+		}
+		_, _ = readPackCache(bytes.NewReader(raw))
+	})
+}
+
+func FuzzUnzipPackCache(f *testing.F) {
+	packed, err := zipPackCache([]byte(`{"version":2}`))
+	if err != nil {
+		f.Fatal(err)
+	}
+	f.Add(packed)
+	f.Add([]byte(`{"version":2}`))
+	f.Add([]byte{0x1f, 0x8b})
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		if len(raw) > 1<<16 {
+			t.Skip()
+		}
+		payload, ok := unzipPackCache(raw)
+		if !ok {
+			return
+		}
+		if len(payload) > int(maxPackFileBytes) {
+			t.Fatalf("unzipped %d bytes, cap %d", len(payload), maxPackFileBytes)
+		}
+	})
+}
+
+func FuzzReadConfigSchema(f *testing.F) {
+	for _, seed := range fuzzContentSeeds {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		if len(raw) > 1<<16 {
+			t.Skip()
+		}
+		root := t.TempDir()
+		if err := os.WriteFile(filepath.Join(root, "content.json"), raw, 0o600); err != nil {
+			t.Skip()
+		}
+		for k, s := range readConfigSchema(root) {
+			if k != strings.ToLower(k) || k == "" || hasToken(k) {
+				t.Fatalf("schema key %q", k)
+			}
+			if s.Key == "" {
+				t.Fatalf("empty schema Key for %q", k)
+			}
 		}
 	})
 }
