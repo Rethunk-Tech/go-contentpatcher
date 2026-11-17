@@ -264,12 +264,15 @@ func AddAssetNames(assets map[string]bool, target string) {
 // its extension.
 func NormalizeAsset(value string) string {
 	value = strings.ToLower(strings.TrimSpace(strings.ReplaceAll(value, "\\", "/")))
-	value = strings.TrimPrefix(value, "./")
-	for strings.HasPrefix(value, "../") {
+	for strings.HasPrefix(value, "./") || strings.HasPrefix(value, "../") {
+		value = strings.TrimPrefix(value, "./")
 		value = strings.TrimPrefix(value, "../")
 	}
 	if ext := filepath.Ext(value); ext != "" {
 		value = strings.TrimSuffix(value, ext)
+	}
+	if value == "." || value == ".." {
+		return ""
 	}
 	return value
 }
