@@ -1136,7 +1136,7 @@ type dynamicTokenDoc struct {
 }
 
 // includeSeenKey keeps one Include of a file under one When. A second Include of the same
-// file with a different When is a different load; the path alone used to drop it.
+// file with a different When is a different load; a path-only key would drop it.
 func includeSeenKey(rel string, when When) string {
 	canon, err := json.Marshal(when)
 	if err != nil {
