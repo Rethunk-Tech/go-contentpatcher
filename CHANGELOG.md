@@ -6,6 +6,8 @@ Notable changes to `go-contentpatcher`. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-21
+
 ### Added
 
 - `Pack.Problems` and `Problem` list the changes the pack refused.
@@ -40,5 +42,6 @@ Notable changes to `go-contentpatcher`. The format follows
 - `SetCacheRoot`, `Reset`, `Forget`, `HoldPacks` and `ReleasePacks`: process-wide caches, an explicit clean slate, and
   packs released a grace period after the last check with `FreeOSMemory` as a policy switch.
 
-[Unreleased]: https://github.com/Rethunk-Tech/go-contentpatcher/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Rethunk-Tech/go-contentpatcher/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Rethunk-Tech/go-contentpatcher/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Rethunk-Tech/go-contentpatcher/releases/tag/v0.1.0
