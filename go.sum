@@ -52,8 +52,8 @@ github.com/Rethunk-Tech/go-safefs v0.10.0 h1:Mgey3ZSnsmHOAZqQBN0hAYyKyQNhrwjkJqn
 github.com/Rethunk-Tech/go-safefs v0.10.0/go.mod h1:XfVUSO6B0XiU6C2v9sZXlEX/PP0eOAuYIt/0g7346Tk=
 github.com/Rethunk-Tech/go-semverish v0.3.1 h1:sIvuC1RHSR9IV2ehOPtVXdj/U46zikObZz0MIKgZWnE=
 github.com/Rethunk-Tech/go-semverish v0.3.1/go.mod h1:kUXNqenw4S25v1GHvX8rOwejX6WEB4I23SvB+3WNVRA=
-github.com/Rethunk-Tech/go-smapi v0.3.2 h1:VQYYkoQaucO1pnTbjM5f/GNThpiIvB19lnQrbmJktys=
-github.com/Rethunk-Tech/go-smapi v0.3.2/go.mod h1:RiBYa6bHCkWJoHIJH82BMmqo/MGIiOIrbX03Z1rfwwo=
+github.com/Rethunk-Tech/go-smapi v0.3.3 h1:t9BsjsxZC0m5Yak+wBROm0ftP8gc/qkKw22wySiKGkI=
+github.com/Rethunk-Tech/go-smapi v0.3.3/go.mod h1:RiBYa6bHCkWJoHIJH82BMmqo/MGIiOIrbX03Z1rfwwo=
 github.com/Rethunk-Tech/go-tilemask v0.1.2 h1:OhJy4I2qJN8EU6Gbixw3rFGdbMpPT+7ZlVhUxoeHX1s=
 github.com/Rethunk-Tech/go-tilemask v0.1.2/go.mod h1:Z8O2SChr0VXyBIOMbJN+Veky6byo3GXmEA7X9Xp62dU=
 github.com/alecthomas/assert/v2 v2.11.0 h1:2Q9r3ki8+JYXvGsDyBXwH3LcJ+WK5D0gc5E8vS6K3D0=
@@ -492,8 +492,8 @@ golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b h1:M2rDM6z3Fhozi9O7NWsxAkg/y
 golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b/go.mod h1:3//PLf8L/X+8b4vuAfHzxeRUl04Adcb341+IGKfnqS8=
 golang.org/x/exp/typeparams v0.0.0-20220428152302-39d4317da171/go.mod h1:AbB0pIl9nAr9wVwH+Z2ZpaocVmF5I4GyWCDIsVjR0bk=
 golang.org/x/exp/typeparams v0.0.0-20230203172020-98cc5a0785f9/go.mod h1:AbB0pIl9nAr9wVwH+Z2ZpaocVmF5I4GyWCDIsVjR0bk=
-golang.org/x/exp/typeparams v0.0.0-20261120182113-8801fbdfac81 h1:s1Ph38C9N9vRS9I4dnsmDzI6fjHGzjvSKt0quvt9wKM=
-golang.org/x/exp/typeparams v0.0.0-20261120182113-8801fbdfac81/go.mod h1:qkMnvgP8C7+xkci04txL2SJFc/0PGqnkf6gs5JUC43E=
+golang.org/x/exp/typeparams v0.0.0-20261121134650-e1094eeca1b5 h1:9VmAvBI05JIlMY0TquNQvn+llXeOqMWnf2rnJBHKW3s=
+golang.org/x/exp/typeparams v0.0.0-20261121134650-e1094eeca1b5/go.mod h1:qkMnvgP8C7+xkci04txL2SJFc/0PGqnkf6gs5JUC43E=
 golang.org/x/mod v0.2.0/go.mod h1:s0Qsj1ACt9ePp/hMypM3fl4fZqREWJwdYDEqhRiZZUA=
 golang.org/x/mod v0.3.0/go.mod h1:s0Qsj1ACt9ePp/hMypM3fl4fZqREWJwdYDEqhRiZZUA=
 golang.org/x/mod v0.4.1/go.mod h1:s0Qsj1ACt9ePp/hMypM3fl4fZqREWJwdYDEqhRiZZUA=
