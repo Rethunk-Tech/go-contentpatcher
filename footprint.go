@@ -621,12 +621,7 @@ func loadPNGAlpha(root, rel, fileKey string) (*tilemask.Mask, bool) {
 var footprintReadCap int64 = maxPackFileBytes
 
 func readCappedFile(path string) ([]byte, error) {
-	file, err := safefs.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = file.Close() }()
-	return safefs.ReadCapped(file, footprintReadCap)
+	return safefs.ReadFileCapped(path, footprintReadCap)
 }
 
 // pngDecodable reports whether raw's declared size is within the pixel cap, reading only the header.

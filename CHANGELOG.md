@@ -6,8 +6,13 @@ Notable changes to `go-contentpatcher`. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `Pack.Problems` and `Problem` list the changes the pack refused.
+
 ### Fixed
 
+- Map and overlay files are read with `safefs.ReadFileCapped`, so a FIFO at the path is refused instead of blocking.
 - Pack JSON and map-scan reads are capped.
 - `FromFile` and `Include` paths resolve case-insensitively, and referenced maps are stamped under their real case in the cache.
 - `Extend` stays out of the analysis memo key.
