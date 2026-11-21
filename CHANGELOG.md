@@ -6,6 +6,17 @@ Notable changes to `go-contentpatcher`. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Pack JSON and map-scan reads are capped.
+- `FromFile` and `Include` paths resolve case-insensitively, and referenced maps are stamped under their real case in the cache.
+- `Extend` stays out of the analysis memo key.
+- Include reads stay inside the pack through directory symlinks.
+- Conditioned `Include`s are kept, and `HasMod` arrays are rejected.
+- `Exclusive` ranks above every numeric priority.
+- Refused changes are reported on the pack.
+- Stacked `./` prefixes are stripped from tilesheet asset names.
+
 ## [0.1.0] - 2026-11-08
 
 ### Added
